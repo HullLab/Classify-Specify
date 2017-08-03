@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+'''
+Written by Greg Meyer
+'''
+
 import Tkinter as tk
 import tkFont
 import string

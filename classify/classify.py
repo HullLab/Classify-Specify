@@ -8,7 +8,7 @@ from __future__ import division
 import Tkinter as tk
 import tkMessageBox
 import csv
-from os.path import isfile
+from os.path import isfile,splitext
 from os import getcwd, listdir, system, chdir
 import myTkObjects as mtk
 from string import lowercase
@@ -105,6 +105,12 @@ class GUI:
         self.submit.pack()
 
 
+##    def get_screen_size(self):
+##        self.w = self.root.winfo_screenwidth()
+##        self.h = self.root.winfo_screenheight()
+##        return self.w,self.h
+
+
     def display_image(self):
         self.image_window = tk.Toplevel()
         self.image_window.geometry('+370+100')
@@ -127,7 +133,7 @@ class GUI:
 
     def display_object_name(self):
         self.object_name = tk.Toplevel()
-        self.object_name.geometry('+1050+100')
+        self.object_name.geometry('+900+100')
 
         self.name = mtk.Message(self.object_name,text=str(self.image_ind + 1) + '/' + str(self.num_objects) + ': '+ self.image_list[self.image_ind])
         self.name.pack()
@@ -140,8 +146,8 @@ class GUI:
         self.display_image()
         self.display_object_name()
 
-        root.wm_attributes("-topmost", 1)
-        root.focus_force()
+        #root.wm_attributes("-topmost", 1)
+        #root.focus_force()
 
         def make_selection_fn(new_selection):
 
@@ -238,8 +244,8 @@ class GUI:
         self.display_image()
         self.display_object_name()
 
-        self.root.wm_attributes("-topmost", 1)
-        self.root.focus_force()
+        #self.root.wm_attributes("-topmost", 1)
+        #self.root.focus_force()
 
 
     def write_data(self):
