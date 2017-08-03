@@ -43,15 +43,14 @@ class GUI:
                 # get image extension from file
                 line1 = reader.next()
                 line2 = reader.next()
-                self.ext = line2[0][-4:]
+                self.ext = splitext(line2[0])[1]
 
                 num_rows = sum(1 for row in reader)
-                self.image_ind = num_rows - 1
+                self.image_ind = num_rows + 1
                 self.append = True
-
                 print 'Restarting from file.'
-
                 self.setup_data_entry()
+                
             else:
                 self.image_ind = 0
                 self.append = False
@@ -250,13 +249,13 @@ class GUI:
 
     def write_data(self):
         if self.append:
-            f = open(self.filename,'a')
+            f = open(self.filename,'ab')
             writer = csv.writer(f)
             obj = sorted(self.data.keys())[-1]
             writer.writerow([obj,self.data[obj][0],self.data[obj][1]])
         else:
             self.filename = self.scan + '_classification.csv'
-            f = open(self.filename,'w')
+            f = open(self.filename,'wb')
             f.write('object,id,confidence\n')
             writer = csv.writer(f)
             for obj in sorted(self.data.keys()):
