@@ -9,7 +9,7 @@ import Tkinter as tk
 import tkMessageBox
 import csv
 from os.path import isfile,splitext
-from os import getcwd, listdir, system, chdir,remove
+from os import getcwd, listdir, system, chdir, remove
 import myTkObjects as mtk
 from string import lowercase
 from PIL import ImageTk, Image
@@ -18,15 +18,14 @@ import glob
 
 
 class GUI:
-
     def __init__(self,root):
-
         self.root = root
         self.scan = ''
         self.ext = ''
         self.data = {}
+        self.start_from_beginning = None
 
-        # check if restarting from existing file
+        # Check if restarting from existing file
         self.files_in_dir = glob.glob('*classification*')
 
         if len(self.files_in_dir) >= 1:
@@ -40,7 +39,7 @@ class GUI:
                 f = open(self.filename)
                 reader = csv.reader(f)
 
-                # get image extension from file
+                # Get image extension from file
                 try:
                     line1 = reader.next()
                     line2 = reader.next()                                      
@@ -50,24 +49,22 @@ class GUI:
                     self.append = True
                     print 'Restarting from file.'
                     self.setup_data_entry()
-                except:
+                except: # Exception for empty file
                     print 'File is empty. Restarting from scratch.'
                     remove(self.filename)
-                    self.image_ind = 0
-                    self.append = False
-                    self.get_scan_name()
+                    self.start_from_beginning = True
             else:
-                self.image_ind = 0
-                self.append = False
-                self.get_scan_name()
+                self.start_from_beginning = True
         else:
+            self.start_from_beginning = True
+
+        if self.start_from_beginning:
             self.image_ind = 0
             self.append = False
             self.get_scan_name()
 
 
     def get_scan_name(self):
-
         def set_scan_name(event=None):
             if self.scan_in.get().strip() == "":
                 tkMessageBox.showerror("Classify", "Enter a scan name.")
@@ -83,7 +80,7 @@ class GUI:
                 del self.scan_in, self.ext_in, self.submit
                 self.setup_data_entry()
 
-        # get the scan name from the user
+        # Get the scan name from the user
         self.frame = tk.Frame(self.root)
         self.frame.pack()
 
@@ -105,6 +102,7 @@ class GUI:
         self.ext_in.insert(0,self.ext)
         self.ext_in.pack()
 
+        # Confirm button
         self.submit = mtk.Button(self.frame2,text='Done',command=set_scan_name)
         self.submit.pack()
 
@@ -211,9 +209,7 @@ class GUI:
         self.confidence_label.pack()
 
         def make_confidence_callback(conf):
-
             def _f(event=None):
-
                 if not self.selection:
                     tkMessageBox.showerror("Fragment", "Choose a type first!")
 
@@ -222,7 +218,6 @@ class GUI:
 
                 self.confidence = conf
                 self.next_image()
-
             return _f
 
         confidence = ['very','somewhat','not']
@@ -239,9 +234,11 @@ class GUI:
 
 
     def next_image(self):
+        # Save previous selections
         obj_num = self.image_list[self.image_ind].split('_')[1]
         self.data[ obj_num ] = ( self.selection, self.confidence )
 
+        # Reset buttons
         self.buttons[self.selection].unSet()
         self.buttons[self.confidence].unSet()
         self.selection = self.confidence = None
@@ -250,11 +247,13 @@ class GUI:
 
         self.image_ind += 1
 
+        # Display message and quit if all images complete
         if self.image_ind == len(self.image_list):
             tkMessageBox.showinfo('Classify','All done!')
             self.root.quit()
             return
 
+        # Close windows for previous object
         self.image_window.destroy()
         self.object_name.destroy()
         try:
@@ -262,7 +261,7 @@ class GUI:
         except:
             pass
 
-
+        # Display windows for next object
         self.display_image()
         self.display_object_name()
         self.display_undo_button()
@@ -272,18 +271,21 @@ class GUI:
 
         
     def previous_image(self):
+        # Move image index back by one (unless first image)
         if self.image_ind == 0:
             self.undo_frame.destroy()
             print 'You are at the first image; cannot undo!'
         else:
             self.image_ind -= 1
 
+        # Reset buttons if necessary
         try:
             self.buttons[self.selection].unSet()
         except:
             pass
         self.selection = self.confidence = None
 
+        # Close windows of current object
         self.image_window.destroy()
         self.object_name.destroy()
         try:
@@ -291,13 +293,16 @@ class GUI:
         except:
             pass
 
+        # Display windows of previous object
         self.display_image()
         self.display_object_name()
         self.display_undo_button()
 
+        # Save selections for previous object
         obj_num = self.image_list[self.image_ind].split('_')[1]
         self.data[obj_num] = (self.selection,self.confidence)
 
+        # Rewrite previously saved selections for previous object
         self.rewrite_data()
 
 
@@ -307,12 +312,12 @@ class GUI:
 
 
     def write_data(self):
-        if self.append:
+        if self.append: # Write to existing file
             f = open(self.filename,'ab')
             writer = csv.writer(f)
             obj = sorted(self.data.keys())[-1]
             writer.writerow([obj,self.data[obj][0],self.data[obj][1]])
-        else:
+        else: # Initialize and write to new file
             self.filename = self.scan + '_classification.csv'
             f = open(self.filename,'wb')
             f.write('object,id,confidence\n')
