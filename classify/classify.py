@@ -3,6 +3,8 @@
 Written by Greg Meyer and Allison Hsiang
 '''
 
+from __future__ import division
+
 import Tkinter as tk
 import tkMessageBox
 import csv
@@ -18,15 +20,15 @@ import glob
 class GUI:
 
     def __init__(self,root):
-        
+
         self.root = root
         self.scan = ''
         self.ext = ''
         self.data = {}
-        
+
         # check if restarting from existing file
         self.files_in_dir = glob.glob('*classification*')
-        
+
         if len(self.files_in_dir) >= 1:
             if tkMessageBox.askyesno('Classify','Classify file exists; load and continue from last object?'):
                 if len(self.files_in_dir) == 1:
@@ -34,7 +36,7 @@ class GUI:
                 else:
                     tkMessageBox.showerror('Classify','Multiple Classify files exist; please choose which file you would like to load.')
                     self.filename = tkFileDialog.askopenfilename()
-                    
+
                 f = open(self.filename)
                 reader = csv.reader(f)
 
@@ -42,11 +44,11 @@ class GUI:
                 line1 = reader.next()
                 line2 = reader.next()
                 self.ext = line2[0][-4:]
-                
+
                 num_rows = sum(1 for row in reader)
                 self.image_ind = num_rows - 1
                 self.append = True
-                
+
                 print 'Restarting from file.'
 
                 self.setup_data_entry()
@@ -106,11 +108,19 @@ class GUI:
     def display_image(self):
         self.image_window = tk.Toplevel()
         self.image_window.geometry('+370+100')
-        
         self.iw_frame = tk.Frame(self.image_window)
-        
-        self.img = ImageTk.PhotoImage(Image.open(self.image_list[self.image_ind]))
-        
+
+        # Open image and resize so that maximum width is 500px and aspect ratio is maintained
+        self.img_original = Image.open(self.image_list[self.image_ind])
+        self.size_original = self.img_original.size
+        if self.size_original[0] > 500:
+            self.ratio = 500 / self.size_original[0]
+            self.img_resized = self.img_original.resize((500,int(self.size_original[1] * self.ratio)),Image.ANTIALIAS)
+            self.img = ImageTk.PhotoImage(self.img_resized)
+        else:
+            self.img = ImageTk.PhotoImage(self.img_original)
+
+        # Display image
         self.panel = tk.Label(self.image_window,image=self.img)
         self.panel.pack(side="bottom")
 
@@ -124,13 +134,12 @@ class GUI:
 
 
     def setup_data_entry(self):
-        
-        self.image_list = [x for x in listdir('.') if x[-4:]==self.ext]
+        self.image_list = [x for x in listdir('.') if splitext(x)[1] == self.ext or splitext(x)[1][1:] == self.ext]
         self.num_objects = len(self.image_list)
 
         self.display_image()
         self.display_object_name()
-        
+
         root.wm_attributes("-topmost", 1)
         root.focus_force()
 
@@ -164,7 +173,7 @@ class GUI:
 
         for m,lst in enumerate([planktonic,nonplankton,other]):
             for n,name in enumerate(lst):
-                self.buttons[name] = mtk.Button(self.frame, 
+                self.buttons[name] = mtk.Button(self.frame,
                     text=keys[button_count]+'. '+name,
                     command=make_selection_fn(name),
                     color=colors[m],
@@ -196,9 +205,9 @@ class GUI:
         conf_keys = ['1','2','3']
         for n,name in enumerate(confidence):
             # fix command here
-            self.buttons[name] = mtk.Button(self.frame, 
-                text=conf_keys[n]+'. '+name, 
-                color='light gray', 
+            self.buttons[name] = mtk.Button(self.frame,
+                text=conf_keys[n]+'. '+name,
+                color='light gray',
                 command=make_confidence_callback(name),
                 staydown=True)
             self.frame.bind_all(conf_keys[n],make_confidence_callback(name))
@@ -231,10 +240,9 @@ class GUI:
 
         self.root.wm_attributes("-topmost", 1)
         self.root.focus_force()
-        
+
 
     def write_data(self):
-        
         if self.append:
             f = open(self.filename,'a')
             writer = csv.writer(f)
@@ -255,10 +263,11 @@ class GUI:
 if __name__ == '__main__':
     root = tk.Tk()
     root.title('Classify')
+    root.update() # Inexplicable fix for hanging file dialog window and images not appearing
 
     # get directory of images from user
     image_dir = tkFileDialog.askdirectory()
     chdir(image_dir)
-    
+
     app = GUI(root)
     root.mainloop()
