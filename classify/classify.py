@@ -9,7 +9,7 @@ import Tkinter as tk
 import tkMessageBox
 import csv
 from os.path import isfile,splitext
-from os import getcwd, listdir, system, chdir
+from os import getcwd, listdir, system, chdir,remove
 import myTkObjects as mtk
 from string import lowercase
 from PIL import ImageTk, Image
@@ -41,16 +41,21 @@ class GUI:
                 reader = csv.reader(f)
 
                 # get image extension from file
-                line1 = reader.next()
-                line2 = reader.next()
-                self.ext = splitext(line2[0])[1]
-
-                num_rows = sum(1 for row in reader)
-                self.image_ind = num_rows + 1
-                self.append = True
-                print 'Restarting from file.'
-                self.setup_data_entry()
-                
+                try:
+                    line1 = reader.next()
+                    line2 = reader.next()                                      
+                    self.ext = splitext(line2[0])[1]
+                    num_rows = sum(1 for row in reader)
+                    self.image_ind = num_rows + 1
+                    self.append = True
+                    print 'Restarting from file.'
+                    self.setup_data_entry()
+                except:
+                    print 'File is empty. Restarting from scratch.'
+                    remove(self.filename)
+                    self.image_ind = 0
+                    self.append = False
+                    self.get_scan_name()
             else:
                 self.image_ind = 0
                 self.append = False
@@ -138,12 +143,26 @@ class GUI:
         self.name.pack()
 
 
+    def display_undo_button(self):
+        if self.image_ind == 0:
+            try:
+                self.undo_frame.destroy()
+            except:
+                pass
+        else:
+            self.undo_frame = tk.Toplevel()
+            self.undo_frame.geometry('+900+200')
+            self.undo_button = tk.Button(self.undo_frame,text='Undo',width=20,pady=2,height=1,bd=2,command=self.previous_image)
+            self.undo_button.pack()           
+
+
     def setup_data_entry(self):
         self.image_list = [x for x in listdir('.') if splitext(x)[1] == self.ext or splitext(x)[1][1:] == self.ext]
         self.num_objects = len(self.image_list)
 
         self.display_image()
         self.display_object_name()
+        self.display_undo_button()
 
         #root.wm_attributes("-topmost", 1)
         #root.focus_force()
@@ -220,7 +239,6 @@ class GUI:
 
 
     def next_image(self):
-
         obj_num = self.image_list[self.image_ind].split('_')[1]
         self.data[ obj_num ] = ( self.selection, self.confidence )
 
@@ -239,12 +257,53 @@ class GUI:
 
         self.image_window.destroy()
         self.object_name.destroy()
+        try:
+            self.undo_frame.destroy()
+        except:
+            pass
+
 
         self.display_image()
         self.display_object_name()
+        self.display_undo_button()
 
         #self.root.wm_attributes("-topmost", 1)
         #self.root.focus_force()
+
+        
+    def previous_image(self):
+        if self.image_ind == 0:
+            self.undo_frame.destroy()
+            print 'You are at the first image; cannot undo!'
+        else:
+            self.image_ind -= 1
+
+        try:
+            self.buttons[self.selection].unSet()
+        except:
+            pass
+        self.selection = self.confidence = None
+
+        self.image_window.destroy()
+        self.object_name.destroy()
+        try:
+            self.undo_frame.destroy()
+        except:
+            pass
+
+        self.display_image()
+        self.display_object_name()
+        self.display_undo_button()
+
+        obj_num = self.image_list[self.image_ind].split('_')[1]
+        self.data[obj_num] = (self.selection,self.confidence)
+
+        self.rewrite_data()
+
+
+    def rewrite_data(self):
+        lines = open(self.filename).readlines()
+        f = open(self.filename,'wb').writelines(lines[:-1])
 
 
     def write_data(self):
@@ -262,7 +321,6 @@ class GUI:
                 writer.writerow([obj,self.data[obj][0],self.data[obj][1]])
 
         f.close()
-
 
 
 if __name__ == '__main__':
