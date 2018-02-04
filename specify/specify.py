@@ -7,53 +7,130 @@ myTkObjects.py written by Greg Meyer
 tkentrycomplete.py written by Mitja Martini
 '''
 
+from __future__ import division
+
 import Tkinter as tk
 import myTkObjects as mtk
 import tkMessageBox
 import csv
-import pandas # module to be installed
-import numexpr # module to be installed
+import pandas
+import numexpr
 import sqlite3
 import os
 from PIL import ImageTk, Image
+from string import lowercase
 import tkFileDialog
 from tkentrycomplete import *
+import glob
+import ast
 
 
 class GUI:
 
     def __init__(self,root):
+        
+        def start(event=None):
+            
+            self.frame.destroy() # Remove mode selection screen
+
+            # Checking mode
+            if self.mode.get() == 1:
+                
+                self.image_dir = tkFileDialog.askdirectory() # Get input directory containing images to check
+                self.image_ext = ['.jpg','tif'] # All acceptable image extensions
+                self.all_files = glob.glob(os.path.join(self.image_dir,'*')) # All files in selected directory
+                self.image_list = [x for x in self.all_files if os.path.splitext(x)[1] in self.image_ext] # All image files in selected directory
+                self.num_objects = len(self.image_list)
+                self.objects_list = map(os.path.basename,self.image_list)
+
+                # Check if CSV output file already exists
+                self.csv_check = glob.glob(os.path.join(self.image_dir,'specify*csv'))
+                if self.csv_check:
+                    if tkMessageBox.askyesno('Specify','Specify output file exists; overwrite?'):
+                        self.overwrite = True
+                    else:
+                        self.overwrite = False
+                        
+                # Check if checkpoint file exists
+                if 'checkpoint.txt' in [os.path.basename(x) for x in self.all_files]:
+                    self.restart = True
+                    self.checkpoint_file = os.path.join(self.image_dir,'checkpoint.txt')
+                    
+                    print 'Restarting from checkpoint file.'
+                    
+                    with open(self.checkpoint_file,'rb') as f:
+                        lines = f.readlines()
+                        self.image_ind = int(lines[0].strip())
+                        self.checking_data = ast.literal_eval(lines[1].strip())
+
+                # Clean start setup
+                else:
+                    self.restart = False
+                    self.image_ind = 0
+                    self.checking_data = dict.fromkeys(self.objects_list)
+                
+                self.setup_data_entry()
+
+
+            # Naming mode (standard)
+            else:
+                            
+                # Set species list
+                species_data = pandas.read_csv('app_species_list.csv')
+                species_data['specName'] = [x.lower() for x in species_data.specName]
+                species_list = species_data['specName']
+
+                # Convert dates
+                species_data['End'] = species_data['End'].convert_objects(convert_numeric=True)
+                species_data['Start'] = species_data['Start'].convert_objects(convert_numeric=True)
+                
+                # Get directory of images from user
+                data_file = tkFileDialog.askopenfilename()
+                os.chdir(os.path.dirname(data_file))
+
+                self.data = os.path.basename(data_file)
+                
+                # Checkpoint restart
+                if 'checkpoint' in data_file:
+                    self.restart = True
+                    
+                    self.checkpoint_data_tr = pandas.read_csv(data_file)
+                    self.checkpoint_codes = map(list,self.checkpoint_data_tr.tail(1).values)[0]
+                    
+                    self.output_base = '_'.join(self.data.split('_')[:-1])
+
+                    self.data_todb = data_file
+                    
+                    self.image_ind = int(self.checkpoint_codes[0])
+                    
+                    self.initialize_objects()
+                    
+                    print 'Restarting from checkpoint file.'
+                    
+                # Normal start
+                else:
+                    self.restart = False
+                    self.output_base = self.data[:-4]
+
+                    self.image_ind = 0
+                    
+                    self.convert_csv()
 
         self.root = root
 
-        self.data = os.path.basename(data_file)
+        # Set mode
+        self.frame = tk.Frame(self.root)
+        self.frame.pack()
+        self.mode_select = mtk.Title(self.frame,text='Select mode:')
+        self.mode_select.pack()
+
+        self.mode = tk.IntVar()
+
+        tk.Radiobutton(self.frame,text='Checking mode',variable=self.mode,value=1).pack()
+        tk.Radiobutton(self.frame,text='Naming mode',variable=self.mode,value=2).pack()
         
-        # checkpoint restart
-        if 'checkpoint' in data_file:
-            self.restart = True
-            
-            self.checkpoint_data_tr = pandas.read_csv(data_file)
-            self.checkpoint_codes = map(list,self.checkpoint_data_tr.tail(1).values)[0]
-            
-            self.output_base = '_'.join(self.data.split('_')[:-1])
+        mtk.Button(self.frame,text='Start',command=start).pack()
 
-            self.data_todb = data_file
-            
-            self.image_ind = int(self.checkpoint_codes[0])
-            
-            self.initialize_objects()
-            
-            print 'Restarting from checkpoint file.'
-            
-        # normal start
-        else:
-            self.restart = False
-            self.output_base = self.data[:-4]
-
-            self.image_ind = 0
-            
-            self.convert_csv()
-            
 
     def convert_csv(self):
 
@@ -247,9 +324,19 @@ class GUI:
         self.image_window = tk.Toplevel()
         self.image_window.geometry('+370+100')
         self.image_window.lower(root)
-        
-        self.img = ImageTk.PhotoImage(Image.open(self.image_list[self.image_ind]))
-        
+
+        self.img = Image.open(self.image_list[self.image_ind])
+
+        # Resize image if too large
+        if self.img.size[0] > 1000:
+            new_width = 700
+            ratio = new_width / float(self.img.size[0])
+            new_height = int((float(self.img.size[1] * float(ratio))))
+            self.resized = self.img.resize((new_width,new_height),Image.ANTIALIAS)
+            self.img = ImageTk.PhotoImage(self.resized)
+        else:
+            self.img = ImageTk.PhotoImage(self.img)
+
         self.panel = tk.Label(self.image_window,image=self.img)
         self.panel.pack()
 
@@ -257,10 +344,10 @@ class GUI:
     def display_object_name(self):
         
         self.object_name = tk.Toplevel()
-        self.object_name.geometry('+1050+100')
+        self.object_name.geometry('+50+250')
         self.object_name.lower(root)
 
-        self.name = mtk.Message(self.object_name,text=str(self.image_ind + 1) + '/' + str(self.num_objects) + ': '+ self.image_list[self.image_ind])
+        self.name = mtk.Message(self.object_name,text=str(self.image_ind + 1) + '/' + str(self.num_objects) + ': '+ os.path.basename(self.image_list[self.image_ind]))
         self.name.pack()
 
 
@@ -323,39 +410,90 @@ class GUI:
         self.species_entry.delete(0,tk.END)
       
         
-
-    def setup_data_entry(self):
-
-        self.objects_list = [x[0] for x in self.all_rows]
-        self.image_list = [x for y in self.objects_list for x in os.listdir('.') if y in x]
-        
+    def display_windows(self):
         self.display_image()
         self.display_object_name()
         
         root.wm_attributes("-topmost", 1)
         root.focus_force()
 
-        self.species_entry_label = mtk.Title(root,text='Species ID:')
-        self.species_entry_label.pack()
 
-        self.species_entry = AutocompleteEntry(root)
-        self.species_entry.set_completion_list(self.final_data['specName'])
-        self.species_entry.pack()
-        self.species_entry.focus()
+    def setup_data_entry(self):
+        
+        def make_selection(new_selection):
 
-        self.submit_species = mtk.Button(root,text='Confirm Species',command=self.confirm_species)
-        root.bind('<Return>',self.confirm_species)
-        self.submit_species.pack()
+            def _f(event=None):
+                if self.selection is not None:
+                    self.buttons[self.selection].unSet()
 
-        # Checkpoint button
-        self.checkpoint_button = mtk.Button(root,text='Checkpoint',color='dark blue',command=self.checkpoint)
-        self.checkpoint_button.pack()
+                self.checking_data[self.objects_list[self.image_ind]] = new_selection
+                print '{:s}: {:s}\n'.format(self.objects_list[self.image_ind],new_selection)
+                self.next_image()
+
+            return _f
+
+            
+        if self.mode.get() == 1:
+
+            self.display_windows()
+
+            self.frame = tk.Frame(self.root)
+            self.frame.pack(side="left")
+
+            self.selection = None
+
+            self.buttons = {}
+
+            options = [('correct','1. Correct as marked'),('change','2. Needs change'),('remove','3. Remove from dataset')]
+
+            for i,option in enumerate(options):
+                self.buttons[option[0]] = mtk.Button(self.frame,
+                                                text=option[1],
+                                                command=make_selection(option[0]))
+                self.buttons[option[0]].pack()
+                self.frame.bind_all(str(i+1),make_selection(option[0]))
+
+            # Checkpoint button
+            self.checkpoint_button = mtk.Button(self.frame,text='Checkpoint',color='dark blue',command=self.check_checkpoint)
+            self.checkpoint_button.pack()
+
+        else:
+            self.objects_list = [x[0] for x in self.all_rows]
+            self.image_list = [x for y in self.objects_list for x in os.listdir('.') if y in x]
+            
+            self.display_windows()
+        
+            self.species_entry_label = mtk.Title(root,text='Species ID:')
+            self.species_entry_label.pack()
+
+            self.species_entry = AutocompleteEntry(root)
+            self.species_entry.set_completion_list(self.final_data['specName'])
+            self.species_entry.pack()
+            self.species_entry.focus()
+
+            self.submit_species = mtk.Button(root,text='Confirm Species',command=self.confirm_species)
+            root.bind('<Return>',self.confirm_species)
+            self.submit_species.pack()
+
+            # Checkpoint button
+            self.checkpoint_button = mtk.Button(root,text='Checkpoint',color='dark blue',command=self.checkpoint)
+            self.checkpoint_button.pack()
+
+
+    def check_checkpoint(self,event=None):
+        filename = 'checkpoint.txt'
+        with open(os.path.join(self.image_dir,filename),'wb') as f:
+            f.write('{:s}\n'.format(str(self.image_ind)))
+            f.write(str(self.checking_data))
+
+        print 'Checkpoint file created.'
         
 
     def checkpoint(self,event=None):
-
-        filename = self.output_base + '_checkpoint.csv'
-        f = open(filename,'w')
+        
+        self.checkpoint_filename = self.output_base + '_checkpoint.csv'
+        
+        f = open(self.checkpoint_filename,'w')
 
         self.cur.execute('SELECT * FROM foram')
         self.all_rows = self.cur.fetchall()
@@ -375,43 +513,73 @@ class GUI:
 
         if self.image_ind == len(self.image_list):
             tkMessageBox.showinfo('Specify','All done!')
+            self.image_window.destroy()
+            self.object_name.destroy()
             self.write_data()
-            self.root.quit()
-            return
 
-        self.image_window.destroy()
-        self.object_name.destroy()
+        else:
+            self.image_window.destroy()
+            self.object_name.destroy()
 
-        self.display_image()
-        self.display_object_name()
+            self.display_image()
+            self.display_object_name()
 
-        self.root.wm_attributes("-topmost", 1)
-        self.root.focus_force()
-        self.species_entry.after(1,lambda:self.species_entry.focus_force())
+            self.root.wm_attributes("-topmost", 1)
+            self.root.focus_force()
+
+            if self.mode.get() == 2:
+                self.species_entry.after(1,lambda:self.species_entry.focus_force())
 
 
     def write_data(self):
-
-        filename = self.output_base + '_specify.csv'
+        
+        if self.mode.get() == 1:
+            # Determine whether to rewrite output file (if it already exists)
+            if self.overwrite:
+                filename = 'specify_check_test.csv'
+            else:
                 
-        if not os.path.exists(filename):
-            f = open(filename,'w')
+                filename = 'specify_check_test_{:d}.csv'.format(len(self.csv_check)+1)
+            
+            with open(os.path.join(self.image_dir,filename),'wb') as f:
+                f.write('obj,action\n')
+                for obj in self.checking_data.keys():
+                    f.write('{:s},{:s}\n'.format(obj,self.checking_data[obj]))
+
+            print 'Specify (checking mode) file written.'
+            
         else:
-            if tkMessageBox.askyesno('Specify',filename + ' exists; overwrite?'):
+            filename = self.output_base + '_specify.csv'
+                    
+            if not os.path.exists(filename):
                 f = open(filename,'w')
             else:
-                f = open(self.output_base + '_specify_2.csv','w')
+                if tkMessageBox.askyesno('Specify',filename + ' exists; overwrite?'):
+                    f = open(filename,'w')
+                else:
+                    f = open(self.output_base + '_specify_2.csv','w')
 
-        self.cur.execute('SELECT * FROM foram')
-        self.all_rows = self.cur.fetchall()
+            self.cur.execute('SELECT * FROM foram')
+            self.all_rows = self.cur.fetchall()
 
-        writer = csv.writer(f)
-        writer.writerow(['object','id','confidence','species','genus','note','species_confidence'])
-        writer.writerows(self.all_rows)
+            writer = csv.writer(f)
+            writer.writerow(['object','id','confidence','species','genus','note','species_confidence'])
+            writer.writerows(self.all_rows)
 
-        print 'Specify file written.'
+            print 'Specify (naming mode) file written.'
 
-        f.close()
+            f.close()
+
+        self.cleanup()
+
+
+    def cleanup(self):
+        try:
+            os.remove(self.checkpoint_file)
+        except:
+            pass
+        
+        root.destroy()
 
 
 
@@ -419,19 +587,6 @@ if __name__ == '__main__':
     
     root = tk.Tk()
     root.title('Specify')
-
-    # set species list
-    species_data = pandas.read_csv('app_species_list.csv')
-    species_data['specName'] = [x.lower() for x in species_data.specName]
-    species_list = species_data['specName']
-
-    # convert dates
-    species_data['End'] = species_data['End'].convert_objects(convert_numeric=True)
-    species_data['Start'] = species_data['Start'].convert_objects(convert_numeric=True)
-    
-    # get directory of images from user
-    data_file = tkFileDialog.askopenfilename()
-    os.chdir(os.path.dirname(data_file))
 
     app = GUI(root)
     root.mainloop()
