@@ -37,7 +37,7 @@ class GUI:
             if self.mode.get() == 1:
                 
                 self.image_dir = tkFileDialog.askdirectory() # Get input directory containing images to check
-                self.image_ext = ['.jpg','tif'] # All acceptable image extensions
+                self.image_ext = ['.jpg','.tif'] # All acceptable image extensions
                 self.all_files = glob.glob(os.path.join(self.image_dir,'*')) # All files in selected directory
                 self.image_list = [x for x in self.all_files if os.path.splitext(x)[1] in self.image_ext] # All image files in selected directory
                 self.num_objects = len(self.image_list)
@@ -50,6 +50,8 @@ class GUI:
                         self.overwrite = True
                     else:
                         self.overwrite = False
+                else:
+                    self.overwrite = False
                         
                 # Check if checkpoint file exists
                 if 'checkpoint.txt' in [os.path.basename(x) for x in self.all_files]:
@@ -415,7 +417,7 @@ class GUI:
         self.display_object_name()
         
         root.wm_attributes("-topmost", 1)
-        root.focus_force()
+        root.focus_force()          
 
 
     def setup_data_entry(self):
@@ -457,6 +459,10 @@ class GUI:
             self.checkpoint_button = mtk.Button(self.frame,text='Checkpoint',color='dark blue',command=self.check_checkpoint)
             self.checkpoint_button.pack()
 
+            # Undo button
+            self.undo_button = tk.Button(self.frame,text='Undo',width=20,pady=2,height=1,bd=2,command=self.previous_image)
+            self.undo_button.pack()
+
         else:
             self.objects_list = [x[0] for x in self.all_rows]
             self.image_list = [x for y in self.objects_list for x in os.listdir('.') if y in x]
@@ -478,6 +484,26 @@ class GUI:
             # Checkpoint button
             self.checkpoint_button = mtk.Button(root,text='Checkpoint',color='dark blue',command=self.checkpoint)
             self.checkpoint_button.pack()
+
+            # Undo button
+            self.undo_button = tk.Button(self.frame,text='Undo',width=20,pady=2,height=1,bd=2,command=self.previous_image)
+            self.undo_button.pack()
+
+
+    def previous_image(self):
+        # Move image index back by one (unless first image)
+        if self.image_ind == 0:
+            print 'You are at the first image; cannot undo!'
+        else:
+            self.image_ind -= 1
+
+        # Close windows of current object
+        self.image_window.destroy()
+        self.object_name.destroy()
+
+        # Display windows of previous object
+        self.display_image()
+        self.display_object_name()
 
 
     def check_checkpoint(self,event=None):
