@@ -5,15 +5,15 @@ Written by Greg Meyer and Allison Hsiang
 
 from __future__ import division
 
-import Tkinter as tk
-import tkMessageBox
+import tkinter as tk
+import tkinter.messagebox
+import tkinter.filedialog
 import csv
 from os.path import isfile,splitext
 from os import getcwd, listdir, system, chdir, remove
 import myTkObjects as mtk
-from string import lowercase
+import string
 from PIL import ImageTk, Image
-import tkFileDialog
 import glob
 
 
@@ -28,36 +28,37 @@ class GUI:
         # Check if restarting from existing file
         self.files_in_dir = glob.glob('*classification*')
 
-        if len(self.files_in_dir) >= 1:
-            if tkMessageBox.askyesno('Classify','Classify file exists; load and continue from last object?'):
+        if len(self.files_in_dir) >= 1: # Restart file exists
+            if tkinter.messagebox.askyesno('Classify','Classify file exists; load and continue from last object?'):
                 if len(self.files_in_dir) == 1:
                     self.filename = self.files_in_dir[0]
                 else:
-                    tkMessageBox.showerror('Classify','Multiple Classify files exist; please choose which file you would like to load.')
-                    self.filename = tkFileDialog.askopenfilename()
-
-                f = open(self.filename)
-                reader = csv.reader(f)
+                    tkinter.messagebox.showerror('Classify','Multiple Classify files exist; please choose which file you would like to load.')
+                    self.filename = tkinter.filedialog.askopenfilename()
 
                 # Get image extension from file
-                try:
-                    line1 = reader.next()
-                    line2 = reader.next()                                      
-                    self.ext = splitext(line2[0])[1]
-                    num_rows = sum(1 for row in reader)
-                    self.image_ind = num_rows + 1
-                    self.append = True
-                    print 'Restarting from file.'
-                    self.setup_data_entry()
-                except: # Exception for empty file
-                    print 'File is empty. Restarting from scratch.'
-                    remove(self.filename)
-                    self.start_from_beginning = True
-            else:
+                with open(self.filename, 'r') as f:
+                    lines = f.readlines()
+                    self.ext = splitext(lines[1].split(',')[0])[1]
+                    num_rows = len(lines) - 1
+
+                    if num_rows == 0: # Exception for empty file
+                        print( 'File is empty. Restarting from scratch.' )
+                        remove(self.filename)
+                        self.start_from_beginning = True
+                    else:
+                        print( 'Restarting from file.' )
+                        self.image_ind = num_rows
+                        self.append = True
+                        self.setup_data_entry()
+
+            else: # Don't load existing file (user inputs "no")
                 self.start_from_beginning = True
-        else:
+
+        else: # Restart file doesn't exist
             self.start_from_beginning = True
 
+        # Start classification from scratch
         if self.start_from_beginning:
             self.image_ind = 0
             self.append = False
@@ -67,14 +68,14 @@ class GUI:
     def get_scan_name(self):
         def set_scan_name(event=None):
             if self.scan_in.get().strip() == "":
-                tkMessageBox.showerror("Classify", "Enter a scan name.")
+                tkinter.messagebox.showerror("Classify", "Enter a scan name.")
             elif self.ext_in.get().strip() == "":
-                tkMessageBox.showerror("Classify", "Enter an image file extension.")
+                tkinter.messagebox.showerror("Classify", "Enter an image file extension.")
             else:
                 self.scan = self.scan_in.get().strip()
                 self.ext = self.ext_in.get().strip()
-                print 'Scan name set to \'' + self.scan + '\''
-                print 'File extension set to \'' + self.ext + '\''
+                print( 'Scan name set to \'' + self.scan + '\'' )
+                print( 'File extension set to \'' + self.ext + '\'' )
                 self.frame.destroy()
                 self.frame2.destroy()
                 del self.scan_in, self.ext_in, self.submit
@@ -151,19 +152,16 @@ class GUI:
             self.undo_frame = tk.Toplevel()
             self.undo_frame.geometry('+900+200')
             self.undo_button = tk.Button(self.undo_frame,text='Undo',width=20,pady=2,height=1,bd=2,command=self.previous_image)
-            self.undo_button.pack()           
+            self.undo_button.pack()
 
 
     def setup_data_entry(self):
-        self.image_list = [x for x in listdir('.') if splitext(x)[1] == self.ext or splitext(x)[1][1:] == self.ext]
+        self.image_list = sorted([x for x in listdir('.') if splitext(x)[1] == self.ext or splitext(x)[1][1:] == self.ext])
         self.num_objects = len(self.image_list)
 
         self.display_image()
         self.display_object_name()
         self.display_undo_button()
-
-        #root.wm_attributes("-topmost", 1)
-        #root.focus_force()
 
         def make_selection_fn(new_selection):
 
@@ -189,7 +187,7 @@ class GUI:
         nonplankton = ['benthic','mollusk','ostracod','rock','junk image']
         other = ['echinoid spine','radiolarian','spicule','tooth','clipped image','unknown']
         colors = ['green','gray','dark blue']
-        keys = lowercase
+        keys = string.ascii_lowercase
 
         button_count = 0
 
@@ -211,7 +209,7 @@ class GUI:
         def make_confidence_callback(conf):
             def _f(event=None):
                 if not self.selection:
-                    tkMessageBox.showerror("Fragment", "Choose a type first!")
+                    tkinter.messagebox.showerror("Fragment", "Choose a type first!")
 
                 if self.confidence is not None:
                     self.buttons[conf].unSet()
@@ -235,23 +233,27 @@ class GUI:
 
     def next_image(self):
         # Save previous selections
-        obj_num = self.image_list[self.image_ind].split('_')[1]
-        self.data[ obj_num ] = ( self.selection, self.confidence )
+        obj_name = self.image_list[self.image_ind]
+        self.data[ obj_name ] = ( self.selection, self.confidence )
 
         # Reset buttons
         self.buttons[self.selection].unSet()
         self.buttons[self.confidence].unSet()
         self.selection = self.confidence = None
 
-        self.write_data()
-
+        # Write selections to file
+        if self.image_ind > 0:
+            self.append = True
+        self.write_data(obj_name)
         self.image_ind += 1
 
         # Display message and quit if all images complete
         if self.image_ind == len(self.image_list):
-            tkMessageBox.showinfo('Classify','All done!')
-            self.root.quit()
-            return
+            if tkinter.messagebox.askyesno('Classify','All done! Exit program?'):
+                self.root.quit()
+                return
+            else:
+                return
 
         # Close windows for previous object
         self.image_window.destroy()
@@ -266,15 +268,12 @@ class GUI:
         self.display_object_name()
         self.display_undo_button()
 
-        #self.root.wm_attributes("-topmost", 1)
-        #self.root.focus_force()
 
-        
     def previous_image(self):
         # Move image index back by one (unless first image)
         if self.image_ind == 0:
             self.undo_frame.destroy()
-            print 'You are at the first image; cannot undo!'
+            print( 'You are at the first image; cannot undo!' )
         else:
             self.image_ind -= 1
 
@@ -299,8 +298,8 @@ class GUI:
         self.display_undo_button()
 
         # Save selections for previous object
-        obj_num = self.image_list[self.image_ind].split('_')[1]
-        self.data[obj_num] = (self.selection,self.confidence)
+        obj_name = self.image_list[self.image_ind]
+        self.data[ obj_name ] = ( self.selection, self.confidence )
 
         # Rewrite previously saved selections for previous object
         self.rewrite_data()
@@ -308,22 +307,21 @@ class GUI:
 
     def rewrite_data(self):
         lines = open(self.filename).readlines()
-        f = open(self.filename,'wb').writelines(lines[:-1])
+        f = open(self.filename,'w').writelines(lines[:-1])
 
 
-    def write_data(self):
+    def write_data(self, obj=None):
         if self.append: # Write to existing file
-            f = open(self.filename,'ab')
+            f = open(self.filename,'a')
             writer = csv.writer(f)
-            obj = sorted(self.data.keys())[-1]
             writer.writerow([obj,self.data[obj][0],self.data[obj][1]])
         else: # Initialize and write to new file
             self.filename = self.scan + '_classification.csv'
-            f = open(self.filename,'wb')
+            f = open(self.filename,'w')
             f.write('object,id,confidence\n')
             writer = csv.writer(f)
-            for obj in sorted(self.data.keys()):
-                writer.writerow([obj,self.data[obj][0],self.data[obj][1]])
+            #for obj in sorted(self.data.keys()):
+            writer.writerow([obj,self.data[obj][0],self.data[obj][1]])
 
         f.close()
 
@@ -334,7 +332,7 @@ if __name__ == '__main__':
     root.update() # Inexplicable fix for hanging file dialog window and images not appearing
 
     # get directory of images from user
-    image_dir = tkFileDialog.askdirectory()
+    image_dir = tkinter.filedialog.askdirectory()
     chdir(image_dir)
 
     app = GUI(root)

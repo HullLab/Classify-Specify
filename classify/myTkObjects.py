@@ -3,8 +3,8 @@
 Written by Greg Meyer
 '''
 
-import Tkinter as tk
-import tkFont
+import tkinter as tk
+import tkinter.font
 import string
 
 FONT_FAMILY = ''
@@ -493,4 +493,3 @@ class WarningManager( tk.Frame, object ):
 		self.pack_kwargs = kwargs
 
 		self.packing = True
-
