@@ -326,6 +326,33 @@ class Title( tk.Text ):
 			fg='OrangeRed4',
 			)
 
+# class RadioButton( tk.Frame, object ):
+#
+# 	def __init__(self,master,text='',**options):
+#
+# 		tk.Text.__init__(self,master,**options)
+#
+# 		self.tag_configure("center", justify='center')
+# 		self.insert(tk.END,text,"center")
+#
+# 		self.bg='old lace'
+#
+# 		self.config(
+# 			font=(FONT_FAMILY,25),
+# 			state='disabled',
+# 			cursor='arrow',
+# 			height=1,
+# 			relief='flat',
+# 			bd=1,
+# 			width=20,
+# 			pady=10,
+# 			bg='old lace',
+# 			highlightthickness=2,
+# 			highlightcolor=self.bg,
+# 			highlightbackground=self.bg,
+# 			fg='OrangeRed4',
+# 			)
+
 
 class Message( tk.Text, object ):
 
@@ -345,7 +372,7 @@ class Message( tk.Text, object ):
 			relief='flat',
 			bd=1,
 			height=1,
-			width=30,
+			width=100,
 			bg='old lace',
 			highlightthickness=2,
 			highlightcolor=self.bg,
