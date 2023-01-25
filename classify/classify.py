@@ -23,12 +23,18 @@ class GUI:
     def __init__(self,root):
         self.root = root
 
+        # Get screen size
+        self.screensize = self.get_screen_size()
+        self.x = self.screensize[0]
+        self.y = self.screensize[1]
+
         # Config window
         self.config = tk.Toplevel(root)
+        self.config.geometry('+{:.0f}+{:.0f}'.format(int(self.x * 0.15), 0)) # POSITION configuration window
         self.config.title('Configuration')
 
         # Console window
-        self.console = tk.Listbox(root)
+        self.console = tk.Listbox(root, width=25)
         self.console_idx = 1
         self.console.insert(self.console_idx, "Welcome to Classify!")
         self.console.pack(fill=tk.X, expand=True)
@@ -41,7 +47,7 @@ class GUI:
         self.filename = ''
 
         # Set up configuration
-        self.update_console(self.console_idx, "Please set up configuration.")
+        self.update_console(self.console_idx, "Please configure this session.")
         self.configuration()
 
 
@@ -98,11 +104,16 @@ class GUI:
         self.setup_data_entry()
 
 
+    def get_screen_size(self):
+        self.w = self.root.winfo_screenwidth()
+        self.h = self.root.winfo_screenheight()
+        return (self.w, self.h)
+
+
     def configuration(self):
         def end_config(event=None):
             # Change to user-input directory
             chdir(self.input_dir_path)
-            self.update_console(self.console_idx, 'Directory set to \'' + self.input_dir_path + '\'.')
             
             # Check that scan name and image extensions are properly set
             if self.scan_in.get().strip() == '':
@@ -114,6 +125,8 @@ class GUI:
             else:
                 self.scan = self.scan_in.get().strip()
                 self.ext = self.ext_in.get().strip()
+                if self.cv.get() == 0:
+                    self.update_console(self.console_idx, 'Default categories specified.')
                 self.update_console(self.console_idx, 'Scan name set to \'' + self.scan + '\'.')
                 self.update_console(self.console_idx, 'File extension set to \'' + self.ext + '\'.')
                 del self.scan_in, self.ext_in, self.submit
@@ -129,11 +142,13 @@ class GUI:
             self.input_dir_path = tkinter.filedialog.askdirectory()
             self.input_dir_label.config(text=self.input_dir_path, wraplength=300)
             self.input_dir_label.pack()
+            self.update_console(self.console_idx, 'Input directory set to \'' + self.input_dir_path + '\'.')
 
         def load_class_file(event=None):
             self.class_file_path = tkinter.filedialog.askopenfilename()
             self.class_file_label.config(text=self.class_file_path, wraplength=300)
             self.class_file_label.pack()
+            self.update_console(self.console_idx, 'User-specified category file set to \'' + self.class_file_path + '\'')
 
         def update_class_button():
             ### Activates/deactivates class file button and selected file label
@@ -146,6 +161,8 @@ class GUI:
             else:
                 self.load_class_file.disable()
                 self.frame4.grid_forget()
+                if self.class_file_path:
+                    self.update_console(self.console_idx, 'Default categories specified.')
 
         # Get input directory
         self.frame = tk.Frame(master=self.config) 
@@ -159,6 +176,8 @@ class GUI:
         self.input_dir_label = tkinter.Label(master=self.frame)
 
         # Get class setting/input
+        self.class_file_path = None
+
         self.frame2 = tk.Frame(master=self.config)
 
         self.frame2.grid(row=3, column=0) # Class title
@@ -202,15 +221,9 @@ class GUI:
         self.submit.pack(pady=20)
 
 
-##    def get_screen_size(self):
-##        self.w = self.root.winfo_screenwidth()
-##        self.h = self.root.winfo_screenheight()
-##        return self.w,self.h
-
-
     def display_image(self):
         self.image_window = tk.Toplevel()
-        self.image_window.geometry('+370+100')
+        self.image_window.geometry('+{:.0f}+{:.0f}'.format(int(self.x * 0.50), int(self.y * 0.10))) # POSITION image window
         self.iw_frame = tk.Frame(self.image_window)
 
         # Open image and resize so that maximum width is 500px and aspect ratio is maintained
@@ -224,15 +237,20 @@ class GUI:
             self.img = ImageTk.PhotoImage(self.img_original)
 
         # Display image
-        self.panel = tk.Label(self.image_window,image=self.img)
+        self.panel = tk.Label(self.image_window, image=self.img)
         self.panel.pack(side="bottom")
 
 
     def display_object_name(self):
         self.object_name = tk.Toplevel()
-        self.object_name.geometry('+900+100')
+        self.object_name.geometry('+{:.0f}+{:.0f}'.format(int(self.x * 0.50), 0)) # POSITION object name window
 
-        self.name = mtk.Message(self.object_name,text=str(self.image_ind + 1) + '/' + str(self.num_objects) + ': '+ self.image_list[self.image_ind])
+        self.name = tk.Label(self.object_name, 
+                                text = str(self.image_ind + 1) + '/' + str(self.num_objects) + ': '+ self.image_list[self.image_ind],
+                                wraplength = 500,
+                                padx = 5,
+                                pady = 5
+                                )
         self.name.pack()
 
 
@@ -244,7 +262,7 @@ class GUI:
                 pass
         else:
             self.undo_frame = tk.Toplevel()
-            self.undo_frame.geometry('+900+200')
+            self.undo_frame.geometry('+{:.0f}+{:.0f}'.format(int(self.x * 0.01), int(self.y * 0.30))) # POSITION undo window
             self.undo_button = tk.Button(self.undo_frame,text='Undo',width=20,pady=2,height=1,bd=2,command=self.previous_image)
             self.undo_button.pack()
 
@@ -272,6 +290,18 @@ class GUI:
 
             def _f(event=None):
 
+                def make_subcat_callback(subcat):
+                    def _f(event=None):
+                        if not self.selection:
+                            tkinter.messagebox.showerror('Classify', 'Choose a type first!')
+
+                        if self.subcategory is not None:
+                            self.subcat_buttons[subcat].unSet()
+
+                        self.subcategory = subcat
+                        self.next_image()
+                    return _f
+
                 if self.selection is not None:
                     self.buttons[self.selection].unSet()
                 self.selection = new_selection
@@ -279,73 +309,106 @@ class GUI:
                 if self.buttons[self.selection].state != 'down':
                     self.buttons[self.selection].set()
 
+                setup_subcat_frame()
+
+                if self.cv.get() == 0:
+                    subcats = self.subcat_dict['all']
+                else:
+                    subcats = self.subcat_dict[self.selection]
+
+                subcat_keys = list(map(str,range(1,len(subcats)+1)))
+                for n,name in enumerate(subcats):
+                    # fix command here
+                    self.subcat_buttons[name] = mtk.Button(self.subcat_frame,
+                        text = subcat_keys[n] + '. ' + name,
+                        color = 'light gray',
+                        command = make_subcat_callback(name),
+                        staydown = True)
+                    self.subcat_frame.bind_all(subcat_keys[n], make_subcat_callback(name))
+                    self.subcat_buttons[name].pack()
+
             return _f
 
         self.selection = None
-        self.confidence = None
+        self.subcategory = None
 
         self.categories = tk.Toplevel(root)
+        self.categories.geometry('+{:.0f}+{:.0f}'.format(int(self.x * 0.15), 0)) # POSITION category window
         self.cat_frame = tk.Frame(self.categories)
         self.cat_frame.pack(side="left")
+
         self.buttons = {}
+        self.subcat_buttons = {}
+        self.subcat_dict = {}
 
-        planktonic = ['complete','fragment','damaged']
-        nonplankton = ['benthic','mollusk','ostracod','rock','junk image']
-        other = ['echinoid spine','radiolarian','spicule','tooth','clipped image','unknown']
-        colors = ['green','gray','dark blue']
+        def setup_subcat_frame():
+            if self.subcat_buttons: # Remove subcat frame if it already exists
+                self.subcat_frame.destroy()
+
+            self.subcat_frame = tk.Frame(master=self.categories)
+            self.subcat_frame.pack()
+            self.subcat_label = mtk.Title(self.subcat_frame, text='Subcategories').pack()
+            self.subcat_buttons = {}
+
+
+        if self.cv.get() == 0: # Default categories
+            planktonic = ['complete','fragment','damaged']
+            nonplankton = ['benthic','mollusk','ostracod','rock','junk image']
+            other = ['echinoid spine','radiolarian','spicule','tooth','clipped image','unknown']
+            categories = [planktonic, nonplankton, other]
+            self.subcat_dict = {'all':['very','somewhat','not']}
+
+
+        else: # User-provided categories
+            # Parse user-provided category file to get main categories and sub-categories
+            # Main categories: [ A, B, C ]
+            # Sub-categories: [ [a1,a2,a3], [b1,b2], [c1,c2,c3,c4] ]
+
+            with open(self.class_file_path, mode='r', encoding='utf-8') as f:
+                csv_reader = csv.reader(f, delimiter=',')
+                categories = []
+
+                for row in csv_reader:
+                    if 'categories' in row:
+                        pass
+                    else:
+                        categories.append(row[0])
+                        if len(row) == 2:
+                            subcat_list = row[1].split(';')
+                            self.subcat_dict[row[0]] = subcat_list
+                            
+                # Put the categories in right format for enumeration
+                categories = [categories]
+
+
         keys = string.ascii_lowercase
+        colors = ['green','gray','dark blue']
 
+        # Make main category selection buttons
         button_count = 0
-
-        for m,lst in enumerate([planktonic,nonplankton,other]):
+        for m,lst in enumerate(categories):
             for n,name in enumerate(lst):
                 self.buttons[name] = mtk.Button(self.cat_frame,
                     text=keys[button_count]+'. '+name,
                     command=make_selection_fn(name),
-                    color=colors[m],
+                    color=colors[m] if self.cv.get() == 0 else colors[n % 3],
                     staydown=True)
                 self.buttons[name].pack()
                 # attach key to button
                 self.cat_frame.bind_all(keys[button_count],make_selection_fn(name))
                 button_count += 1
 
-        self.confidence_label = mtk.Title(self.cat_frame,text='Confidence:')
-        self.confidence_label.pack()
-
-        def make_confidence_callback(conf):
-            def _f(event=None):
-                if not self.selection:
-                    tkinter.messagebox.showerror('Fragment', 'Choose a type first!')
-
-                if self.confidence is not None:
-                    self.buttons[conf].unSet()
-
-                self.confidence = conf
-                self.next_image()
-            return _f
-
-        confidence = ['very','somewhat','not']
-        conf_keys = ['1','2','3']
-        for n,name in enumerate(confidence):
-            # fix command here
-            self.buttons[name] = mtk.Button(self.cat_frame,
-                text=conf_keys[n]+'. '+name,
-                color='light gray',
-                command=make_confidence_callback(name),
-                staydown=True)
-            self.cat_frame.bind_all(conf_keys[n],make_confidence_callback(name))
-            self.buttons[name].pack()
-
 
     def next_image(self):
         # Save previous selections
         obj_name = self.image_list[self.image_ind]
-        self.data[ obj_name ] = ( self.selection, self.confidence )
+        self.data[ obj_name ] = ( self.selection, self.subcategory )
 
         # Reset buttons
         self.buttons[self.selection].unSet()
-        self.buttons[self.confidence].unSet()
-        self.selection = self.confidence = None
+        self.subcat_buttons[self.subcategory].unSet()
+        self.selection = None
+        self.subcategory = None
 
         # Write selections to file
         if self.image_ind > 0:
@@ -364,6 +427,7 @@ class GUI:
         # Close windows for previous object
         self.image_window.destroy()
         self.object_name.destroy()
+        self.subcat_frame.destroy()
         try:
             self.undo_frame.destroy()
         except:
@@ -404,11 +468,12 @@ class GUI:
             self.buttons[self.selection].unSet()
         except:
             pass
-        self.selection = self.confidence = None
+        self.selection = self.subcategory = None
 
         # Close windows of current object
         self.image_window.destroy()
         self.object_name.destroy()
+        self.subcat_frame.destroy()
         try:
             self.undo_frame.destroy()
         except:
@@ -421,7 +486,7 @@ class GUI:
 
         # Save selections for previous object
         obj_name = self.image_list[self.image_ind]
-        self.data[ obj_name ] = ( self.selection, self.confidence )
+        self.data[ obj_name ] = ( self.selection, self.subcategory )
 
         # Rewrite previously saved selections for previous object
         self.rewrite_data()

@@ -373,6 +373,7 @@ class Message( tk.Text, object ):
 			bd=1,
 			height=1,
 			width=100,
+			wraplength=70,
 			bg='old lace',
 			highlightthickness=2,
 			highlightcolor=self.bg,
