@@ -396,14 +396,13 @@ class GUI:
                     if 'classes' in row:
                         pass
                     else:
-                        classes.append(row[0])
+                        classes.append(row[0].strip())
                         if len(row) == 2: # User provided subclasses
-                            subcat_list = row[1].split(';')
+                            subcat_list = [x.strip() for x in row[1].split(';')]
                             self.subcat_dict[row[0]] = subcat_list
                         else: # Use default subclasses
                             self.subcat_dict[row[0]] = ['very','somewhat','not']
 
-                            
                 # Put the classes in right format for enumeration
                 classes = [classes]
 
