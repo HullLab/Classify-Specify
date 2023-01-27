@@ -112,31 +112,52 @@ class GUI:
 
     def configuration(self):
         def end_config(event=None):
-            # Change to user-input directory
-            chdir(self.input_dir_path)
-            
-            # Check that scan name and image extensions are properly set
+            all_checks_passed = True
+
+            # Check that input directory is properly set
+            try:
+                chdir(self.input_dir_path)
+            except:
+                tkinter.messagebox.showerror('Classify', 'Enter an input directory.')
+                self.update_console(self.console_idx, 'Input directory missing.')
+                all_checks_passed = False
+
+            # Check that classes are properly set
+            if self.cv.get() == 0: # Default classes
+                self.update_console(self.console_idx, 'Default classes specified.')
+            else: # User-specifed classes
+                if not self.class_file_path: # Empty class file
+                    tkinter.messagebox.showerror('Classify', 'User-defined classes requested but no class file selected.')
+                    self.update_console(self.console_idx, 'Class file missing.')
+                    all_checks_passed = False
+
+            # Check that scan name is properly set
             if self.scan_in.get().strip() == '':
                 tkinter.messagebox.showerror('Classify', 'Enter a scan name.')
                 self.update_console(self.console_idx, 'Scan name missing.')
-            elif self.ext_in.get().strip() == '':
+                all_checks_passed = False
+            
+            # Check that file extension is properly set
+            if self.ext_in.get().strip() == '':
                 tkinter.messagebox.showerror('Classify', 'Enter an image file extension.')
                 self.update_console(self.console_idx, 'File extension missing.')
-            else:
+                all_checks_passed = False
+
+            if all_checks_passed:
                 self.scan = self.scan_in.get().strip()
-                self.ext = self.ext_in.get().strip()
-                if self.cv.get() == 0:
-                    self.update_console(self.console_idx, 'Default classes specified.')
                 self.update_console(self.console_idx, 'Scan name set to \'' + self.scan + '\'.')
+
+                self.ext = self.ext_in.get().strip()
                 self.update_console(self.console_idx, 'File extension set to \'' + self.ext + '\'.')
+
                 del self.scan_in, self.ext_in, self.submit
                 self.start_from_beginning = True
 
-            # Destroy config window
-            self.config.destroy()
+                # Destroy config window
+                self.config.destroy()
 
-            # Start the program
-            self.start()
+                # Start the program
+                self.start()
 
         def load_dir(event=None):
             self.input_dir_path = tkinter.filedialog.askdirectory()
