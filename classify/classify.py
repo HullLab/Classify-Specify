@@ -126,7 +126,7 @@ class GUI:
                 self.scan = self.scan_in.get().strip()
                 self.ext = self.ext_in.get().strip()
                 if self.cv.get() == 0:
-                    self.update_console(self.console_idx, 'Default categories specified.')
+                    self.update_console(self.console_idx, 'Default classes specified.')
                 self.update_console(self.console_idx, 'Scan name set to \'' + self.scan + '\'.')
                 self.update_console(self.console_idx, 'File extension set to \'' + self.ext + '\'.')
                 del self.scan_in, self.ext_in, self.submit
@@ -162,7 +162,7 @@ class GUI:
                 self.load_class_file.disable()
                 self.frame4.grid_forget()
                 if self.class_file_path:
-                    self.update_console(self.console_idx, 'Default categories specified.')
+                    self.update_console(self.console_idx, 'Default classes specified.')
 
         # Get input directory
         self.frame = tk.Frame(master=self.config) 
@@ -332,9 +332,9 @@ class GUI:
         self.selection = None
         self.subcategory = None
 
-        self.categories = tk.Toplevel(root)
-        self.categories.geometry('+{:.0f}+{:.0f}'.format(int(self.x * 0.15), 0)) # POSITION category window
-        self.cat_frame = tk.Frame(self.categories)
+        self.classes = tk.Toplevel(root)
+        self.classes.geometry('+{:.0f}+{:.0f}'.format(int(self.x * 0.15), 0)) # POSITION category window
+        self.cat_frame = tk.Frame(self.classes)
         self.cat_frame.pack(side="left")
 
         self.buttons = {}
@@ -345,48 +345,53 @@ class GUI:
             if self.subcat_buttons: # Remove subcat frame if it already exists
                 self.subcat_frame.destroy()
 
-            self.subcat_frame = tk.Frame(master=self.categories)
+            self.subcat_frame = tk.Frame(master=self.classes)
             self.subcat_frame.pack()
-            self.subcat_label = mtk.Title(self.subcat_frame, text='Subcategories').pack()
+
+            if self.subcat_dict[list(self.subcat_dict.keys())[0]] == ['very','somewhat','not']:
+                self.subcat_label = mtk.Title(self.subcat_frame, text='Confidence').pack()
+            else:
+                self.subcat_label = mtk.Title(self.subcat_frame, text='Subclasses').pack()
+
             self.subcat_buttons = {}
 
-
-        if self.cv.get() == 0: # Default categories
+        if self.cv.get() == 0: # Default classes
             planktonic = ['complete','fragment','damaged']
             nonplankton = ['benthic','mollusk','ostracod','rock','junk image']
             other = ['echinoid spine','radiolarian','spicule','tooth','clipped image','unknown']
-            categories = [planktonic, nonplankton, other]
+            classes = [planktonic, nonplankton, other]
             self.subcat_dict = {'all':['very','somewhat','not']}
 
-
-        else: # User-provided categories
-            # Parse user-provided category file to get main categories and sub-categories
-            # Main categories: [ A, B, C ]
-            # Sub-categories: [ [a1,a2,a3], [b1,b2], [c1,c2,c3,c4] ]
+        else: # User-provided classes
+            # Parse user-provided category file to get main classes and sub-classes
+            # Main classes: [ A, B, C ]
+            # Sub-classes: [ [a1,a2,a3], [b1,b2], [c1,c2,c3,c4] ]
 
             with open(self.class_file_path, mode='r', encoding='utf-8') as f:
                 csv_reader = csv.reader(f, delimiter=',')
-                categories = []
+                classes = []
 
                 for row in csv_reader:
-                    if 'categories' in row:
+                    if 'classes' in row:
                         pass
                     else:
-                        categories.append(row[0])
-                        if len(row) == 2:
+                        classes.append(row[0])
+                        if len(row) == 2: # User provided subclasses
                             subcat_list = row[1].split(';')
                             self.subcat_dict[row[0]] = subcat_list
-                            
-                # Put the categories in right format for enumeration
-                categories = [categories]
+                        else: # Use default subclasses
+                            self.subcat_dict[row[0]] = ['very','somewhat','not']
 
+                            
+                # Put the classes in right format for enumeration
+                classes = [classes]
 
         keys = string.ascii_lowercase
         colors = ['green','gray','dark blue']
 
         # Make main category selection buttons
         button_count = 0
-        for m,lst in enumerate(categories):
+        for m,lst in enumerate(classes):
             for n,name in enumerate(lst):
                 self.buttons[name] = mtk.Button(self.cat_frame,
                     text=keys[button_count]+'. '+name,
